@@ -85,6 +85,12 @@ def validate_model(model, allow_unresolved=False, require_visual_self_check=Fals
                 errors.append(f'Item {ident} needs evidence and status for {key}.');continue
             if (dimensions.get(key) is None) != (ev['status']=='unknown'): errors.append(f'Item {ident} {key} value and evidence status disagree.')
             if ev['status'] in ('observed','derived') and ev.get('page') not in pages: errors.append(f'Item {ident} {key} needs an inspected source page.')
+            if ev['status']=='unknown':
+                search=ev.get('search')
+                if not isinstance(search,dict) or not isinstance(search.get('views_checked'),list) or not search['views_checked'] or not all(isinstance(v,str) and v.strip() for v in search['views_checked']) or not isinstance(search.get('result'),str) or not search['result'].strip():
+                    errors.append(f'Item {ident} unknown {key} needs a record of the drawing views checked and what was found.')
+                elif not isinstance(search.get('source_pages'),list) or not search['source_pages'] or not all(isinstance(n,int) and not isinstance(n,bool) and n in pages for n in search['source_pages']):
+                    errors.append(f'Item {ident} unknown {key} needs inspected source pages for the dimension search.')
         if not isinstance(item.get('evidence',[]),list) or not isinstance(item.get('prompt_overrides',[]),list) or not all(isinstance(v,dict) and isinstance(v.get('name'),str) for v in item.get('prompt_overrides',[])):errors.append(f'Item {ident} needs evidence and named prompt lists.')
     if isinstance(inventory,list):
         seen_inventory=set(); mapped={}

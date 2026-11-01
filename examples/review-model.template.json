@@ -22,9 +22,9 @@
       "dimensions": {"width": null, "height": null, "depth": null},
       "visual_dimensions": {"width": 400, "height": 700, "depth": 500},
       "dimension_evidence": {
-        "width": {"status": "unknown", "description": "REPLACE with source evidence"},
-        "height": {"status": "unknown", "description": "REPLACE with source evidence"},
-        "depth": {"status": "unknown", "description": "REPLACE with source evidence"}
+        "width": {"status": "unknown", "description": "REPLACE with source evidence", "search": {"views_checked": ["REPLACE plan/elevation/section/detail/notes"], "source_pages": [1], "result": "REPLACE with what you found"}},
+        "height": {"status": "unknown", "description": "REPLACE with source evidence", "search": {"views_checked": ["REPLACE plan/elevation/section/detail/notes"], "source_pages": [1], "result": "REPLACE with what you found"}},
+        "depth": {"status": "unknown", "description": "REPLACE with source evidence", "search": {"views_checked": ["REPLACE plan/elevation/section/detail/notes"], "source_pages": [1], "result": "REPLACE with what you found"}}
       },
       "evidence": [], "prompt_overrides": []
     }],

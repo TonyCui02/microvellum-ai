@@ -26,8 +26,8 @@ Open `http://127.0.0.1:8000/`. The page requires an agent-prepared model and sou
 
 For an agent working from this checkout, the main sequence is:
 
-1. Run `py scripts/mv.py render 'D:\private\drawing.pdf' --out 'D:\private\rendered'`. Visually inspect all rendered pages and record the evidence.
-2. Search the bundled catalog with `py scripts/mv.py catalog search 'search term'`. Prepare a private review model from [the template](examples/review-model.template.json), set `project.catalog_sha256` to `catalog_sha256` from [the catalog manifest](data/catalog/manifest.json), identify uncertainties, and review it with the user.
+1. Run `py scripts/mv.py render 'D:\private\drawing.pdf' --out 'D:\private\rendered'`. Visually inspect all rendered pages and record the evidence. Before marking any dimension unknown, search the corresponding plan, elevation, section, detail and notes throughout the PDF; record views/pages checked and the result in that dimension's `dimension_evidence.*.search`.
+2. Search the bundled catalog with `py scripts/mv.py catalog search 'search term'`. Prepare a private review model from [the template](examples/review-model.template.json), set `project.catalog_sha256` to `catalog_sha256` from [the catalog manifest](data/catalog/manifest.json), identify uncertainties, and prepare the model for self-check.
 3. Before publishing, compare the generated Front, Top and 3D views against the corresponding drawing views, correct discrepancies, and record the agent's `review.visual_self_check` for all three. Publishing blocks until each comparison passes or the model documents why no comparable source view exists. Any model edit clears the self-check, so repeat it before presenting the revised page. Then run `py scripts/mv.py publish 'D:\private\review.json'` and `py scripts/mv.py serve` to show the local review page. The page shows all modeled wall elevations/plan together; it has no wall selector.
 4. After review and resolution of blocking issues, run `py scripts/mv.py export --model 'D:\private\review.json' --out 'D:\private\xml-draft'`. Read the validation report and communicate omissions and uncertainty with the draft.
 

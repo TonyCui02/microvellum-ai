@@ -19,7 +19,8 @@ PNG=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',1,1,8,2,0,0,0))+ch
 
 def sample():
     visual_check={view:{'status':'matches_source','source_pages':[1],'evidence':'Compared modeled geometry with the source drawing.'} for view in ('front','top','3d')}
-    return {'project':{'name':'Example','units':'mm'},'source':{'visual_review':{'inspected_pages':[1]}},'review':{'issues':[],'visual_self_check':visual_check},'room':{'walls':[{'id':'W','start':[0,0],'end':[1000,0],'height':2400,'thickness':100}], 'drawing_inventory':[{'id':'A-view','label':'Cabinet','kind':'cabinet','resolution':'model_product','model_id':'A','evidence':['Page 1 plan']}], 'products':[{'id':'A','label':'Cabinet','wall_id':'W','offset':0,'elevation':0,'dimensions':{'width':400,'height':700,'depth':None},'visual_dimensions':{'depth':300},'dimension_evidence':{'width':{'status':'observed','page':1,'description':'Plan'},'height':{'status':'observed','page':1,'description':'Elevation'},'depth':{'status':'unknown','page':1,'description':'Not shown'}},'evidence':[],'prompt_overrides':[]} ]}}
+    depth_search={'views_checked':['plan','front elevation','section','notes'],'source_pages':[1],'result':'Inspected the applicable views and notes; no depth value is shown.'}
+    return {'project':{'name':'Example','units':'mm'},'source':{'visual_review':{'inspected_pages':[1]}},'review':{'issues':[],'visual_self_check':visual_check},'room':{'walls':[{'id':'W','start':[0,0],'end':[1000,0],'height':2400,'thickness':100}], 'drawing_inventory':[{'id':'A-view','label':'Cabinet','kind':'cabinet','resolution':'model_product','model_id':'A','evidence':['Page 1 plan']}], 'products':[{'id':'A','label':'Cabinet','wall_id':'W','offset':0,'elevation':0,'dimensions':{'width':400,'height':700,'depth':None},'visual_dimensions':{'depth':300},'dimension_evidence':{'width':{'status':'observed','page':1,'description':'Plan'},'height':{'status':'observed','page':1,'description':'Elevation'},'depth':{'status':'unknown','page':1,'description':'Not shown','search':depth_search}},'evidence':[],'prompt_overrides':[]} ]}}
 
 class DrawingWorkflowTests(unittest.TestCase):
     def test_png_copy_and_no_overwrite(self):
@@ -37,6 +38,8 @@ class DrawingWorkflowTests(unittest.TestCase):
         self.assertTrue(any('visually inspected' in e for e in validate.validate_model(bad_check,require_visual_self_check=True)))
         bad=copy.deepcopy(good);bad['room']['products'][0]['dimension_evidence']['depth']['status']='observed'
         self.assertTrue(any('status disagree' in e for e in validate.validate_model(bad)))
+        bad=copy.deepcopy(good);bad['room']['products'][0]['dimension_evidence']['depth'].pop('search')
+        self.assertTrue(any('views checked' in e for e in validate.validate_model(bad)))
         bad=copy.deepcopy(good);bad['room']['drawing_inventory'][0]['resolution']='unresolved'
         self.assertTrue(any('is unresolved' in e for e in validate.validate_model(bad)))
         two=copy.deepcopy(good);two['room']['walls'].append({'id':'W2','start':[1000,0],'end':[1000,1000],'height':2400,'thickness':100});other=copy.deepcopy(two['room']['products'][0]);other['id']='B';other['wall_id']='W2';two['room']['products'].append(other);two['room']['drawing_inventory'].append({'id':'B-view','label':'Cabinet B','kind':'cabinet','resolution':'model_product','model_id':'B','evidence':['Page 1 plan']});self.assertEqual(validate.validate_model(two),[])
