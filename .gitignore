@@ -1,0 +1,78 @@
+# Independent reference repositories; each has its own Git history.
+/excelToXml/
+/mmx-engineering-spec-manager/
+
+# Local database snapshots, provider binaries, and extracted research payloads.
+/data/local/
+/library-catalog.sqlite
+*.sqlite
+!/data/catalog/kitchen-library-v7.1.sqlite
+*.sqlite3
+*.sqlite-*
+*.sdf
+*.db
+*.db3
+*.sql
+*.pdf
+*.xls
+*.xlsx
+*.xlsm
+*.jsonl
+project.xml
+validation.json
+/.pdf-inspect-runtime/
+/investigation/sqlce/package/
+/investigation/sqlce/amd64/
+/investigation/sqlce/*.dll
+/investigation/sqlce/*.nupkg
+/investigation/sqlce/*.sdf
+/investigation/sqlce/*.blob
+/investigation/sqlce/*.decoded
+/investigation/data-dictionary.html
+/investigation/data-dictionary.txt
+
+# Local research notes and database-derived reports are not release artifacts.
+/findings.md
+/plan.md
+/research.md
+/investigation/xml-import-research.md
+/investigation/sqlce/cross-snapshot-research.md
+/investigation/sqlce/workbook-research.md
+/investigation/sqlce/Categories.json
+/investigation/sqlce/Subassemblies.json
+/investigation/sqlce/counts.json
+/investigation/sqlce/schema.json
+/investigation/sqlce/inspect-sample.ps1
+/investigation/sqlce/export-metadata.ps1
+/investigation/sqlce/verify_source_audit.py
+/poc/kitchen-model.json
+
+# Customer project files and generated CAD backups.
+/ton/
+*.bak
+
+# Python environments, caches, and build outputs.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage*
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local configuration, editor state, and OS metadata.
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Agent-published local review manifest (contains private paths).
+/poc/.active-review.json
+/poc/.active-review.tmp

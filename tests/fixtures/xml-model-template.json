@@ -1,0 +1,10 @@
+{
+  "schema_version": "1",
+  "target": {"build": "15.6.1308.640", "configuration": "REPLACE with active configuration", "output_units": "mm", "coordinates": "native_unverified"},
+  "catalog_sha256": "REPLACE with SHA-256 of catalog file",
+  "review": {"status": "draft", "reviewer": "REPLACE", "note": "REPLACE with review evidence"},
+  "project": {"name": "REPLACE", "job_number": "REPLACE"},
+  "locations": ["REPLACE room name"],
+  "groups": [{"name": "REPLACE exact group name", "record_id": "REPLACE group record ID"}],
+  "products": [{"id": "P1", "record_id": "REPLACE product record ID", "name": "REPLACE exact product name", "location": "REPLACE room name", "group": "REPLACE exact group name", "item_number": "1", "width": "600", "height": "720", "depth": "500", "x": "0", "y": "0", "z": "0", "angle": "0"}]
+}

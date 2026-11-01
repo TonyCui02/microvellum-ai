@@ -1,0 +1,11 @@
+# Locally downloaded provider/runtime and extracted sample bytes are research inputs,
+# not dependencies to vendor into either source repository.
+sqlce/package/
+sqlce/amd64/
+sqlce/*.dll
+sqlce/*.nupkg
+sqlce/*.sdf
+sqlce/*.blob
+sqlce/*.decoded
+data-dictionary.html
+data-dictionary.txt

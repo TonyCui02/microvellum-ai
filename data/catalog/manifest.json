@@ -1,0 +1,11 @@
+{
+  "catalog": "kitchen-library-v7.1.sqlite",
+  "catalog_sha256": "39c1e5190175bcfa88e84f1a0c92214a4b3131f3369fe501729827cf26bf0c2a",
+  "catalog_schema_version": "2",
+  "library_name": "Kitchen Library V7.1",
+  "source_sqlite_sha256": "e084ba2b306094af1cfb1467b4e82daf67ec06e09baaa6b3a151e0de8a1ca82c",
+  "scope": "Derived library catalog and workbook index; includes the Template project needed for project-linked library products. It is not an SDF or a Microvellum database.",
+  "provenance": "Built from a local research snapshot. Its completeness and exact correspondence to the active installation remain unverified.",
+  "known_limits": "Workbook indexes include incomplete streams. Formula calculation and XML import behavior are not validated by this catalog.",
+  "preparation": "Derived catalog copy with 18 machine-local external relationship paths redacted; SQLite VACUUM removed freed pages. Source catalog and SDF remain local."
+}
