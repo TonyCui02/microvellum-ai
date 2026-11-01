@@ -4,7 +4,7 @@ const ns = 'http://www.w3.org/2000/svg';
 let currentRevision = null, currentModelKey = null, model = null, selectedId = null, pdfDocument = null, pdfPage = 1, busy = false, displayOnly = false;
 const editDrafts = new Map();
 let saving = false, saveQueue = Promise.resolve();
-let viewMode='front', topLayer='base', selectedWallId=null, sourceFormat='pdf', THREE, threeRenderer, threeScene, threeCamera, threeControls, threeMeshes=[], threeInit, threeObserver;
+let viewMode='front', topLayer='base', sourceFormat='pdf', THREE, threeRenderer, threeScene, threeCamera, threeControls, threeMeshes=[], threeInit, threeObserver;
 const text = value => value == null ? 'Not specified' : String(value);
 // Null means unknown. Visual dimensions are placeholders used only to draw boxes.
 const sizeOf=(p,key)=>Number.isFinite(p.dimensions?.[key])?p.dimensions[key]:(p.visual_dimensions?.[key]??0);
@@ -25,39 +25,33 @@ function dimensionLine(svg, horizontal, start, end, cross, from, label) {
   }
 }
 function drawLayout() {
-  const svg=$('#diagram');svg.replaceChildren();const products=model.room.products.filter(p=>p.wall_id===selectedWallId);const features=(model.room.features||[]).filter(p=>p.wall_id===selectedWallId);
+  const svg=$('#diagram');svg.replaceChildren();
+  const products=model.room.products||[],features=model.room.features||[],walls=model.room.walls||[];
   const items=$('#items');items.replaceChildren();
   for(const product of [...products,...features]){const button=document.createElement('button');button.textContent=product.label;button.className=selectedId===product.id?'active':'';button.onclick=()=>selectProduct(product);items.append(button)}
-  const wall=model.room.walls?.find(w=>w.id===selectedWallId);const width=wall?Math.hypot(wall.end[0]-wall.start[0],wall.end[1]-wall.start[1]):2000;
-  const top=viewMode==='top';const maximumHeight=top?Math.max(650,...products.map(p=>sizeOf(p,'depth'))):Math.max(2300,...products.map(p=>(p.elevation||0)+sizeOf(p,'height')));
-  svg.setAttribute('viewBox',`-290 -300 ${Math.max(width,1000)+580} ${maximumHeight+(top?650:650)}`);svg.setAttribute('preserveAspectRatio','xMidYMid meet');
-  const baseline=top?0:maximumHeight;svg.append(svgElement('line',{x1:0,y1:baseline,x2:width,y2:baseline,stroke:'#8ea899','stroke-width':12}));
-  if(top){const wallText=svgElement('text',{x:width/2,y:-165,class:'wall-caption'});wallText.textContent='WALL';svg.append(wallText)}
-  const shown=top?products.filter(p=>topLayer==='upper'?(p.elevation||0)>0:(p.elevation||0)<=0):products;
-  shown.forEach((product,index)=>{
-    if(!Number.isFinite(product.offset)||!Number.isFinite(product.elevation))return;
-    const w=sizeOf(product,'width'),h=top?sizeOf(product,'depth'):sizeOf(product,'height');if(!(w>0&&h>0))return;
-    const x=product.offset,y=top?0:maximumHeight-product.elevation-h;
-    const group=svgElement('g',{class:'item'+(selectedId===product.id?' active':''),tabindex:'0',role:'button','aria-label':product.label});
-    group.append(svgElement('rect',{x,y,width:w,height:h,rx:4}));
-    const id=svgElement('text',{x:x+w/2,y:y+h/2+20,class:'svg-id'});id.textContent=product.id;group.append(id);
-    const select=()=>selectProduct(product);group.addEventListener('click',select);group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select()}});svg.append(group);
-    const horizontal=top?y+h+105:((product.elevation||0)>0?y-105:y+h+105);
-    dimensionLine(svg,true,x,x+w,horizontal,top?y+h:((product.elevation||0)>0?y:y+h),dimensionText(product,'width'));
-    if(index===0 || index===shown.length-1){const side=index===0?x-115:x+w+115;dimensionLine(svg,false,y,y+h,side,index===0?x:x+w,dimensionText(product,top?'depth':'height'))}
-  });
-  for(const feature of features){if(feature.kind!=='rail'||(top&&topLayer!=='upper'))continue;
-    const x=feature.offset, length=sizeOf(feature,'width');if(!Number.isFinite(x)||!length)continue;
-    const y=top?(feature.visual_depth_offset||150):maximumHeight-(feature.elevation||0);
-    const group=svgElement('g',{class:'rail-item'+(selectedId===feature.id?' active':''),tabindex:'0',role:'button','aria-label':feature.label});
-    group.append(svgElement('line',{x1:x,y1:y,x2:x+length,y2:y}));const label=svgElement('text',{x:x+length/2,y:y-35,class:'rail-label'});label.textContent='R1';group.append(label);
-    group.addEventListener('click',()=>selectProduct(feature));group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectProduct(feature)}});svg.append(group);
+  const top=viewMode==='top';
+  if(top){
+    const shown=products.filter(p=>topLayer==='upper'?(p.elevation||0)>0:(p.elevation||0)<=0);
+    const points=[];
+    const addPoint=(x,y)=>points.push([x,y]);
+    for(const wall of walls){addPoint(...wall.start);addPoint(...wall.end)}
+    for(const product of shown){const wall=walls.find(w=>w.id===product.wall_id);if(!wall)continue;const dx=wall.end[0]-wall.start[0],dy=wall.end[1]-wall.start[1],length=Math.hypot(dx,dy);if(!length)continue;const ux=dx/length,uy=dy/length,nx=uy,ny=-ux,w=sizeOf(product,'width'),d=sizeOf(product,'depth'),base=(wall.thickness||0)/2;const x=wall.start[0]+ux*(product.offset||0)+nx*base,y=wall.start[1]+uy*(product.offset||0)+ny*base;for(const [along,across] of [[0,0],[w,0],[w,d],[0,d]])addPoint(x+ux*along+nx*across,y+uy*along+ny*across)}
+    if(!points.length)points.push([0,0],[2000,1000]);
+    const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]),minX=Math.min(...xs)-250,maxX=Math.max(...xs)+250,minY=Math.min(...ys)-250,maxY=Math.max(...ys)+250;
+    svg.setAttribute('viewBox',`${minX} ${minY} ${Math.max(1000,maxX-minX)} ${Math.max(700,maxY-minY)}`);svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+    for(const wall of walls){const line=svgElement('line',{x1:wall.start[0],y1:wall.start[1],x2:wall.end[0],y2:wall.end[1],stroke:'#8ea899','stroke-width':Math.max(12,(wall.thickness||100)/3)});svg.append(line)}
+    for(const product of shown){const wall=walls.find(w=>w.id===product.wall_id);if(!wall)continue;const dx=wall.end[0]-wall.start[0],dy=wall.end[1]-wall.start[1],length=Math.hypot(dx,dy);if(!length)continue;const ux=dx/length,uy=dy/length,nx=uy,ny=-ux,w=sizeOf(product,'width'),d=sizeOf(product,'depth'),base=(wall.thickness||0)/2,x=wall.start[0]+ux*(product.offset||0)+nx*base,y=wall.start[1]+uy*(product.offset||0)+ny*base;const pts=[[0,0],[w,0],[w,d],[0,d]].map(([along,across])=>`${x+ux*along+nx*across},${y+uy*along+ny*across}`).join(' ');const group=svgElement('g',{class:'item'+(selectedId===product.id?' active':''),tabindex:'0',role:'button','aria-label':product.label});group.append(svgElement('polygon',{points:pts,rx:4}));const label=svgElement('text',{x:x+ux*w/2+nx*d/2,y:y+uy*w/2+ny*d/2,class:'svg-id'});label.textContent=product.id;group.append(label);const choose=()=>selectProduct(product);group.addEventListener('click',choose);group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose()}});svg.append(group)}
+  }else{
+    const maxWidth=Math.max(1000,...walls.map(w=>Math.hypot(w.end[0]-w.start[0],w.end[1]-w.start[1]))),rowHeight=Math.max(2300,...products.map(p=>(p.elevation||0)+sizeOf(p,'height'))),gap=350;
+    const rows=walls.length?walls:[{id:null,name:'Layout',start:[0,0],end:[maxWidth,0]}];
+    svg.setAttribute('viewBox',`-320 -100 ${maxWidth+640} ${rows.length*(rowHeight+gap)+100}`);svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+    rows.forEach((wall,index)=>{const topY=index*(rowHeight+gap),base=topY+rowHeight;svg.append(svgElement('line',{x1:0,y1:base,x2:Math.hypot(wall.end[0]-wall.start[0],wall.end[1]-wall.start[1]),y2:base,stroke:'#8ea899','stroke-width':12}));const title=svgElement('text',{x:0,y:topY+65,class:'wall-caption','text-anchor':'start'});title.textContent=wall.name||wall.id||'Elevation';svg.append(title);const wallProducts=products.filter(p=>!wall.id||p.wall_id===wall.id);wallProducts.forEach((product,itemIndex)=>{if(!Number.isFinite(product.offset)||!Number.isFinite(product.elevation))return;const w=sizeOf(product,'width'),h=sizeOf(product,'height');if(!(w>0&&h>0))return;const x=product.offset,y=base-product.elevation-h,group=svgElement('g',{class:'item'+(selectedId===product.id?' active':''),tabindex:'0',role:'button','aria-label':product.label});group.append(svgElement('rect',{x,y,width:w,height:h,rx:4}));const id=svgElement('text',{x:x+w/2,y:y+h/2+20,class:'svg-id'});id.textContent=product.id;group.append(id);const choose=()=>selectProduct(product);group.addEventListener('click',choose);group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose()}});svg.append(group);if(itemIndex===0||itemIndex===wallProducts.length-1)dimensionLine(svg,true,x,x+w,(product.elevation||0)>0?y-105:y+h+105,(product.elevation||0)>0?y:y+h,dimensionText(product,'width'))});for(const feature of features.filter(f=>f.kind==='rail'&&(!wall.id||f.wall_id===wall.id))){const x=feature.offset,length=sizeOf(feature,'width'),y=base-(feature.elevation||0);if(!Number.isFinite(x)||!length)continue;const group=svgElement('g',{class:'rail-item'+(selectedId===feature.id?' active':''),tabindex:'0',role:'button','aria-label':feature.label});group.append(svgElement('line',{x1:x,y1:y,x2:x+length,y2:y}));const choose=()=>selectProduct(feature);group.addEventListener('click',choose);group.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose()}});svg.append(group)}})
   }
-  svg.setAttribute('aria-label',top?`Top view, ${topLayer} cabinets. Dimensions in ${model.project.units}.`:`Front view. Dimensions in ${model.project.units}.`);
+  svg.setAttribute('aria-label',top?`Top view of all modeled walls, ${topLayer} cabinets. Dimensions in ${model.project.units}.`:`Front elevations of all modeled walls. Dimensions in ${model.project.units}.`);
 }
 
 function selectProduct(product) {
-  selectedId=product.id;selectedWallId=product.wall_id;$('#wallSelect').value=selectedWallId;if(viewMode==='top'){const layer=(product.elevation||0)>0?'upper':'base';if(layer!==topLayer){topLayer=layer;for(const [id,active] of [['#baseLayer',layer==='base'],['#upperLayer',layer==='upper']]){const b=$(id);b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))}}}drawLayout();showProduct(editDrafts.get(product.id)||product);highlight3d();
+  selectedId=product.id;if(viewMode==='top'){const layer=(product.elevation||0)>0?'upper':'base';if(layer!==topLayer){topLayer=layer;for(const [id,active] of [['#baseLayer',layer==='base'],['#upperLayer',layer==='upper']]){const b=$(id);b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))}}}drawLayout();showProduct(editDrafts.get(product.id)||product);highlight3d();
 }
 function node(tag, className, content) {
   const element=document.createElement(tag);if(className)element.className=className;
@@ -86,29 +80,11 @@ function showProduct(product) {
     const note=product.review_details?.dimensions?.[key];if(note&&!hasCanonicalText(note))box.append(node('small','',note));dimensions.append(box);
   }
   size.append(dimensions);if(product.kind==='rail')size.querySelector('h3').textContent='Rail size';body.append(size);
-  const productSection=node('div','detail-section');productSection.append(node('h3','',product.kind==='rail'?'Library material':'Library product'));
+  const productSection=node('div','detail-section');productSection.append(node('h3','','Library item'));
   const productPicker=makeCatalogPicker('products','Search products by name…',product.library_product?.name||'',choice=>editItem(product.id,p=>selectCatalogProduct(p,choice)));productSection.append(productPicker);
   const productRecord=product.library_product?.record_id||product.library_product?.link_id;
-  productSection.append(node('small','material-source',productRecord?`SDF library record ${product.library_product?.link_id||productRecord}`:'No catalog record selected yet.'));
+  productSection.append(node('small','catalog-source',productRecord?`SDF library record ${product.library_product?.link_id||productRecord}`:'No catalog record selected yet.'));
   body.append(productSection);
-  const materialSection=node('div','detail-section');materialSection.append(node('h3','','Materials & finish'));
-  const material=product.material;
-  const materialNames={panel_finish:'Panels & fronts',interior_carcass:'Interior carcass',edging:'Edging',toe_kick:'Toe kick',benchtop:'Benchtop',handle:'Handle / profile'};
-  const materialMap=material&&typeof material==='object'&&!Array.isArray(material)?material:{panel_finish:typeof material==='string'?material:''};
-  const grid=node('div','material-editor');
-  const productGroup=product.specification_group||product.library_product?.specification_group||model.project.specification_group||'Kitchen Library';
-  const groupInfo=typeof productGroup==='object'?productGroup:{name:productGroup};
-  for(const name of Object.keys(materialMap)){
-    const row=node('div','material-edit-row');row.append(node('span','material-edit-label',materialNames[name]||name.replaceAll('_',' ')));
-    row.append(node('small','material-drawing-spec',`Drawing: ${materialMap[name]||'Not specified'}`));
-    if(name==='handle'){row.append(node('small','material-source','Construction note; no material catalog mapping.'));grid.append(row);continue}
-    const selected=product.material_catalog?.[name];
-    const picker=makeCatalogPicker('materials','Search library materials…',selected?.name||'',choice=>editItem(product.id,p=>{p.material_catalog??={};p.material_catalog[name]={record_id:choice.record_id,link_id:choice.link_id,name:choice.name,catalog_sha256:choice.catalog_sha256,source_sqlite_sha256:choice.source_sqlite_sha256,group:choice.group,group_link_id:choice.group_link_id,role:name,group_assigned:choice.group_assigned}}),false,{group:groupInfo.name,group_link_id:groupInfo.link_id||'',role:name});
-    row.append(picker);const matchNote=product.material_match_notes?.[name];const pointerNote=selected?(selected.group_assigned?'The group workbook has a pointer to this material, but component use is unverified.':'This record is available in the group workbook, but no pointer assignment is recorded.') : '';row.append(node('small','material-source',selected?.record_id?`Catalog candidate: ${selected.name||selected.record_id}. ${matchNote||'Candidate equivalence still needs review.'} ${pointerNote} The current XML exporter does not serialize this assignment.`:(matchNote||'No library record selected. The drawing requirement stays in JSON; the current XML exporter does not serialize material assignments.')));grid.append(row);
-  }
-  if(!Object.keys(materialMap).length)grid.append(node('small','material-source','No material requirement is recorded for this item.'));
-  materialSection.append(grid);
-  body.append(materialSection);
   const evidence=node('div','detail-section');evidence.append(node('h3','','What the drawing shows'));
   const evidenceList=node('ul','detail-list');
   for(const item of product.review_details?.drawing || product.evidence || [])if(!hasCanonicalText(item))evidenceList.append(node('li','',item));
@@ -166,7 +142,7 @@ function makeCatalogPicker(kind,placeholder,value,onChoose,allowCustom=false,con
         else if(term&&!choices.some(x=>norm(x.name)===norm(term)))choices.unshift({name:term,is_custom:true,is_typed:true});
       }
       if(!choices.length&&!append){menu.append(node('div','catalog-message','No matching choices.'))}
-      for(const rawChoice of choices){const choice={...rawChoice,catalog_sha256:data.catalog_sha256,source_sqlite_sha256:data.source_sqlite_sha256,scope:data.scope,group:data.group,role:data.role};const option=node('button','catalog-option'+(choice.is_custom?' catalog-option-custom':''));option.type='button';option.setAttribute('role','option');const detail=choice.is_custom?(choice.is_current?'Current draft text · no SDF record':'Use as custom text · no SDF record'):kind==='materials'?(choice.group_assigned?'Assigned by a pointer in this group':'Available in this group’s material library'):`SDF record ${choice.record_id}`;option.append(node('strong','',choice.name),node('small','',detail));option.onclick=async()=>{input.value=choice.name;menu.hidden=true;await onChoose(choice)};menu.append(option)}
+      for(const rawChoice of choices){const choice={...rawChoice,catalog_sha256:data.catalog_sha256,source_sqlite_sha256:data.source_sqlite_sha256,scope:data.scope,group:data.group,role:data.role};const option=node('button','catalog-option'+(choice.is_custom?' catalog-option-custom':''));option.type='button';option.setAttribute('role','option');const detail=choice.is_custom?(choice.is_current?'Current draft text · no SDF record':'Use as custom text · no SDF record'):`SDF record ${choice.record_id}`;option.append(node('strong','',choice.name),node('small','',detail));option.onclick=async()=>{input.value=choice.name;menu.hidden=true;await onChoose(choice)};menu.append(option)}
       const oldMore=menu.querySelector('.catalog-more');oldMore?.remove();if(data.total>offset+data.results.length){const more=node('button','catalog-more',`Show more · ${offset+data.results.length} of ${data.total}`);more.type='button';more.onclick=()=>load(searchTerm,offset+data.results.length,true);menu.append(more)}
     }catch(error){if(token===request){menu.replaceChildren(node('div','catalog-message',error.message));menu.hidden=false}}
   };
@@ -183,6 +159,7 @@ async function saveModel(next){
   // Update the in-memory draft immediately so rapid successive edits build on
   // one another, then serialize writes so each If-Match uses the latest hash.
   model=next;
+  if(next.review)delete next.review.visual_self_check;
   saveQueue=saveQueue.catch(()=>{}).then(async()=>{
     saving=true;setSaveStatus('Saving…');
     try{next.project.revision=model.project.revision;const response=await fetch('/api/model',{method:'POST',headers:{'Content-Type':'application/json','If-Match':currentRevision},body:JSON.stringify(next)});const result=await response.json();if(!response.ok)throw new Error(result.error||'Save failed');currentRevision=result.revision;model.project.revision=result.project_revision;next.project.revision=result.project_revision;drawLayout();if(threeScene)build3d();setSaveStatus('Saved to the source JSON.','saved')}
@@ -218,9 +195,8 @@ function build3d(){
   if(!threeScene||!model)return;
   for(const object of [...threeScene.children])if(object.userData.dynamic){threeScene.remove(object);object.traverse(x=>{x.geometry?.dispose();if(x.material){for(const m of Array.isArray(x.material)?x.material:[x.material])m.dispose()}})}
   threeMeshes=[];
-  const wall=model.room.walls?.find(w=>w.id===selectedWallId)||model.room.walls?.[0];const total=wall?Math.hypot(wall.end[0]-wall.start[0],wall.end[1]-wall.start[1]):2000;
-  const center=wall?[(wall.start[0]+wall.end[0])/2,-(wall.start[1]+wall.end[1])/2]:[1000,0];
-  const floor=new THREE.Mesh(new THREE.PlaneGeometry(Math.max(total*2,3500),3000),new THREE.MeshStandardMaterial({color:'#e9f0e9'}));floor.rotation.x=-Math.PI/2;floor.position.set(center[0],-5,center[1]);floor.userData.dynamic=true;threeScene.add(floor);
+  const walls=model.room.walls||[];const xs=walls.flatMap(w=>[w.start[0],w.end[0]]),ys=walls.flatMap(w=>[w.start[1],w.end[1]]);const minX=xs.length?Math.min(...xs):0,maxX=xs.length?Math.max(...xs):2000,minY=ys.length?Math.min(...ys):0,maxY=ys.length?Math.max(...ys):0;const center=[(minX+maxX)/2,-(minY+maxY)/2],total=Math.max(maxX-minX,maxY-minY,2000);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(Math.max(total*1.8,3500),Math.max(total*1.8,3000)),new THREE.MeshStandardMaterial({color:'#e9f0e9'}));floor.rotation.x=-Math.PI/2;floor.position.set(center[0],-5,center[1]);floor.userData.dynamic=true;threeScene.add(floor);
   for(const w of model.room.walls||[]){const length=Math.hypot(w.end[0]-w.start[0],w.end[1]-w.start[1]);if(!length)continue;const panel=new THREE.Mesh(new THREE.BoxGeometry(length,w.height||2400,w.thickness||100),new THREE.MeshStandardMaterial({color:'#cedbd1',transparent:true,opacity:.45,side:THREE.DoubleSide}));panel.position.set((w.start[0]+w.end[0])/2,(w.height||2400)/2,-(w.start[1]+w.end[1])/2);panel.rotation.y=Math.atan2(w.end[1]-w.start[1],w.end[0]-w.start[0]);panel.userData.dynamic=true;threeScene.add(panel)}
   for(const p of model.room.products){const w=model.room.walls?.find(x=>x.id===p.wall_id);if(!w||!p.dimensions)continue;const width=sizeOf(p,'width'),height=sizeOf(p,'height'),depth=sizeOf(p,'depth');if(!(width>0&&height>0&&depth>0))continue;
     const dx=w.end[0]-w.start[0],dy=w.end[1]-w.start[1],length=Math.hypot(dx,dy);if(!length)continue;const ux=dx/length,uy=dy/length,dist=(p.offset||0)+width/2,away=(w.thickness||0)/2+depth/2;
@@ -232,12 +208,11 @@ function build3d(){
   for(const p of model.room.features||[]){if(p.kind!=='rail')continue;const w=model.room.walls?.find(x=>x.id===p.wall_id);if(!w)continue;const dx=w.end[0]-w.start[0],dy=w.end[1]-w.start[1],length=Math.hypot(dx,dy);if(!length)continue;const ux=dx/length,uy=dy/length,railLength=sizeOf(p,'width');if(!railLength)continue;const dist=(p.offset||0)+railLength/2,away=(w.thickness||0)/2+(p.visual_depth_offset||150);
     const mesh=new THREE.Mesh(new THREE.CylinderGeometry(14,14,railLength,16),new THREE.MeshStandardMaterial({color:'#8a9a93',metalness:.55,roughness:.35}));mesh.rotation.z=Math.PI/2;mesh.rotation.y=Math.atan2(dy,dx);mesh.position.set(w.start[0]+ux*dist+uy*away,p.elevation||0,-(w.start[1]+uy*dist-ux*away));mesh.userData={dynamic:true,productId:p.id};threeScene.add(mesh);threeMeshes.push(mesh);
   }
-  const dx=wall?wall.end[0]-wall.start[0]:1,dy=wall?wall.end[1]-wall.start[1]:0,len=Math.hypot(dx,dy)||1,tx=dx/len,tz=-dy/len,nx=dy/len,nz=dx/len;const distance=Math.max(total*2.1,3500);threeControls.target.set(center[0],900,center[1]);threeCamera.position.set(center[0]+tx*total*.7+nx*distance,Math.max(total*1.3,2600),center[1]+tz*total*.7+nz*distance);threeControls.update();highlight3d();
+  const distance=Math.max(total*1.6,3500);threeControls.target.set(center[0],900,center[1]);threeCamera.position.set(center[0]+distance,Math.max(total*1.15,2600),center[1]+distance);threeControls.update();highlight3d();
 }
 function highlight3d(){for(const mesh of threeMeshes)mesh.material.color.set(mesh.userData.productId===selectedId?'#e4b77e':'#b9d3c2')}
-function setView(mode){viewMode=mode;$('#viewNote').textContent=mode==='top'?'Top view shows one wall at a time. ?? means unknown. The shapes are approximate.':mode==='front'?'Front view shows one wall at a time. ?? means unknown. The shapes are approximate.':'Select an item to see its details. The shapes are approximate.';$('#diagram').style.display=mode==='3d'?'none':'';$('#threeContainer').hidden=mode!=='3d';$('#topLayers').hidden=mode!=='top';for(const [id,active] of [['#frontView',mode==='front'],['#topView',mode==='top'],['#threeView',mode==='3d']]){const b=$(id);b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))}if(mode==='3d')ensure3d().then(resize3d);else drawLayout()}
+function setView(mode){viewMode=mode;$('#viewNote').textContent=mode==='top'?'Top view shows the full modeled plan. ?? means unknown. The shapes are approximate.':mode==='front'?'Front view shows each modeled wall elevation. ?? means unknown. The shapes are approximate.':'Select an item to see its details. The shapes are approximate.';$('#diagram').style.display=mode==='3d'?'none':'';$('#threeContainer').hidden=mode!=='3d';$('#topLayers').hidden=mode!=='top';for(const [id,active] of [['#frontView',mode==='front'],['#topView',mode==='top'],['#threeView',mode==='3d']]){const b=$(id);b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))}if(mode==='3d')ensure3d().then(resize3d);else drawLayout()}
 function setLayer(layer){topLayer=layer;for(const [id,active] of [['#baseLayer',layer==='base'],['#upperLayer',layer==='upper']]){const b=$(id);b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active))}drawLayout()}
-$('#wallSelect').onchange=e=>{selectedWallId=e.target.value;selectedId=null;drawLayout();if(threeScene)build3d();$('#selected').innerHTML='<div class="detail-empty"><div><strong>Choose an item</strong><span>Select an item to see its details.</span></div></div>'};
 $('#frontView').onclick=()=>setView('front');$('#topView').onclick=()=>setView('top');$('#threeView').onclick=()=>setView('3d');$('#baseLayer').onclick=()=>setLayer('base');$('#upperLayer').onclick=()=>setLayer('upper');
 
 async function loadModelChoices(activeKey) {
@@ -292,13 +267,14 @@ async function refresh() {
     const info=await response.json();if(info.revision===currentRevision&&info.model_key===currentModelKey)return;
     const result=await fetch('/api/model',{cache:'no-store'});if(!result.ok)throw new Error('Cannot read draft JSON.');
     const incoming=await result.json();if(!incoming?.project || !Array.isArray(incoming?.room?.products) || !Array.isArray(incoming?.review?.issues))throw new Error('Draft JSON is missing required fields.');
-    model=incoming;editDrafts.clear();currentRevision=info.revision;currentModelKey=info.model_key||info.model_name;sourceFormat=info.source_format||'pdf';displayOnly=Boolean(info.display_only);$('#readOnlyNotice').hidden=!displayOnly;selectedId=null;selectedWallId=model.room.walls[0]?.id??null;$('#wallSelect').replaceChildren();for(const w of model.room.walls){const option=node('option','',w.name||w.id);option.value=w.id;$('#wallSelect').append(option)}$('#wallPicker').hidden=model.room.walls.length<2;
+    model=incoming;editDrafts.clear();currentRevision=info.revision;currentModelKey=info.model_key||info.model_name;sourceFormat=info.source_format||'pdf';displayOnly=Boolean(info.display_only);$('#readOnlyNotice').hidden=!displayOnly;selectedId=null;
     await loadModelChoices(currentModelKey);
     $('#projectName').textContent=model.project.name;$('#questions').replaceChildren();const measures=(model.drawing_measurements||[]).filter(x=>!hasCanonicalText(x));$('#measurementsCard').hidden=!measures.length;$('#measurements').replaceChildren();for(const measure of measures)$('#measurements').append(node('li','',measure));
     let visibleQuestionCount=0;for(const issue of model.review.issues){if(hasCanonicalText(issue))continue;const li=document.createElement('li');li.textContent=issue;$('#questions').append(li);visibleQuestionCount++}
     for(const entry of model.room.drawing_inventory||[]){if(entry.resolution!=='unresolved'||hasCanonicalText(entry.label))continue;const evidence=(entry.evidence||[]).filter(x=>!hasCanonicalText(x)).join(' ');const li=document.createElement('li');li.textContent=`Unresolved drawing item: ${entry.label}. ${evidence||'No evidence recorded.'}`;$('#questions').append(li);visibleQuestionCount++}
+    for(const rule of model.review.rules?.rulebook?.rules||[]){if(!rule.enabled)continue;const outcome=(model.review.rules.evaluations||[]).find(e=>e.id===rule.id);if(!outcome||!['applied','not_applicable'].includes(outcome.status)){const li=document.createElement('li');li.textContent=`Rule needs review: ${rule.title}. ${outcome?.reason||'Awaiting evaluation.'}`;$('#questions').append(li);visibleQuestionCount++}}
     if(!visibleQuestionCount){const li=document.createElement('li');li.textContent='No questions listed. Review the drawing and proposed products with the agent.';$('#questions').append(li)}
-    const rules=(model.review.applied_rules||[]).filter(rule=>![rule.title,rule.detail,rule.source].some(hasCanonicalText));$('#rulesCard').hidden=!rules.length;$('#appliedRules').replaceChildren();for(const rule of rules){const li=document.createElement('li');li.append(node('strong','rule-title',rule.title||'Applied rule'),node('span','rule-detail',rule.detail||String(rule)));if(rule.source)li.append(node('small','rule-source',rule.source));$('#appliedRules').append(li)}
+    const ruleReview=model.review.rules;const definitions=ruleReview?.rulebook?.rules||[];const evaluations=ruleReview?.evaluations||[];const rules=ruleReview?definitions.filter(rule=>rule.enabled).map(rule=>{const result=evaluations.find(e=>e.id===rule.id);return {title:rule.title,detail:`${(result?.status||'pending').replaceAll('_',' ')}: ${result?.reason||'Awaiting evaluation'}`,source:rule.source}}):(model.review.applied_rules||[]);$('#rulesCard').hidden=!rules.length;$('#appliedRules').replaceChildren();for(const rule of rules){const li=document.createElement('li');li.append(node('strong','rule-title',rule.title||'Applied rule'),node('span','rule-detail',rule.detail||String(rule)));if(rule.source)li.append(node('small','rule-source',rule.source));$('#appliedRules').append(li)}
     $('#selected').innerHTML='<div class="detail-empty"><span class="detail-icon">↖</span><div><strong>Choose a cabinet</strong><span>See its size, drawing notes and proposed settings here.</span></div></div>';
     $('#loading').hidden=true;$('#review').hidden=false;drawLayout();if(threeScene)build3d();await loadPdf();
   } catch(error){$('#review').hidden=true;$('#loading').hidden=false;$('#loadingText').textContent='No current review is available. '+error.message;currentRevision=null}

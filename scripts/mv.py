@@ -16,6 +16,7 @@ COMMANDS = {
     'publish': 'poc/render_review.py',
     'serve': 'poc/server.py',
     'export': 'poc/export_experimental_xml.py',
+    'rules': 'src/mv_kitchen/rules.py',
 }
 
 

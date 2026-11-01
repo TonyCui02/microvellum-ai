@@ -31,5 +31,12 @@
     "drawing_inventory": [{"id": "I1", "label": "REPLACE visible item", "kind": "cabinet",
       "resolution": "model_product", "model_id": "P1", "evidence": ["REPLACE page and view"]}]
   },
-  "review": {"issues": ["Replace placeholders and resolve all drawing and catalog questions before export."]}
+  "review": {
+    "issues": ["Replace placeholders and resolve all drawing and catalog questions before export."],
+    "visual_self_check": {
+      "front": {"status": "pending"},
+      "top": {"status": "pending"},
+      "3d": {"status": "pending"}
+    }
+  }
 }

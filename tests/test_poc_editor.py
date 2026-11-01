@@ -43,7 +43,7 @@ class POCEditorIntegrationTests(unittest.TestCase):
                 'dimension_evidence':{k:{'status':'confirmed','description':'test'} for k in ('width','height','depth')},
                 'evidence':[],'prompt_overrides':[]}], 'features':[],
                 'drawing_inventory':[{'id':'I1','label':'Upper','kind':'cabinet','evidence':['test'],'resolution':'model_product','model_id':'P1'}]},
-            'review':{'issues':[]}}
+            'review':{'issues':[],'visual_self_check':{view:{'status':'matches_source','source_pages':[1],'evidence':'Compared modeled geometry with source drawing.'} for view in ('front','top','3d')}}}
         self.model_path.write_text(json.dumps(self.model), encoding='utf-8')
         self.manifest = self.root / 'active.json'
         self.manifest.write_text(json.dumps({'model':str(self.model_path),'pdf':str(self.drawing),'pdf_sha256':drawing_hash,'page_count':1}),encoding='utf-8')

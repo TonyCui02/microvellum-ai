@@ -28,10 +28,16 @@ For an agent working from this checkout, the main sequence is:
 
 1. Run `py scripts/mv.py render 'D:\private\drawing.pdf' --out 'D:\private\rendered'`. Visually inspect all rendered pages and record the evidence.
 2. Search the bundled catalog with `py scripts/mv.py catalog search 'search term'`. Prepare a private review model from [the template](examples/review-model.template.json), set `project.catalog_sha256` to `catalog_sha256` from [the catalog manifest](data/catalog/manifest.json), identify uncertainties, and review it with the user.
-3. Run `py scripts/mv.py publish 'D:\private\review.json'`, then `py scripts/mv.py serve` to show the local review page.
+3. Before publishing, compare the generated Front, Top and 3D views against the corresponding drawing views, correct discrepancies, and record the agent's `review.visual_self_check` for all three. Publishing blocks until each comparison passes or the model documents why no comparable source view exists. Any model edit clears the self-check, so repeat it before presenting the revised page. Then run `py scripts/mv.py publish 'D:\private\review.json'` and `py scripts/mv.py serve` to show the local review page. The page shows all modeled wall elevations/plan together; it has no wall selector.
 4. After review and resolution of blocking issues, run `py scripts/mv.py export --model 'D:\private\review.json' --out 'D:\private\xml-draft'`. Read the validation report and communicate omissions and uncertainty with the draft.
 
 These commands do not interpret drawings automatically or prove that the resulting XML will import correctly. The default catalog can be overridden: use `--catalog PATH` with `serve` or `export`, or provide the catalog path before the query with `catalog search`. `py scripts/mv.py --help` lists the entry points; append `--help` to a command for arguments.
+
+## Persistent shop rules
+
+Two bundled defaults cover door-face depth and marked component labels. These defaults are merged into existing private rulebooks by ID without replacing customizations or disabled rules. Ask the agent to add or change a lasting rule, or use `py scripts/mv.py rules --help`. For example: `py scripts/mv.py rules add custom-rule --title "Example" --instruction "Check the drawing note." --scope "Applicable items" --source "Shop instruction"`. Rule changes are stored privately at `~/.microvellum-ai/rules.json`; set `MV_RULEBOOK` or use `rules --rulebook PATH` and `export --rulebook PATH` to select another file. Back up or share this private file deliberately when moving machines; it is not synced by the application.
+
+For each job, `py scripts/mv.py rules snapshot --model 'D:\private\review.json'` records the rulebook and creates pending evaluations, increments the model revision and clears prior approval. The agent records an outcome, reason and evidence for every enabled rule before review. Export requires a complete snapshot and blocks unresolved evaluations. If the rulebook has changed, re-snapshot and re-evaluate; `export --use-saved-rules` explicitly chooses the earlier snapshot instead. The report records the fingerprint and outcomes. These checks cannot verify the agent's interpretation of the drawing or natural-language rules. Existing job JSONs need a snapshot and renewed review before export.
 
 For development checks, run:
 

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "rules": [
+    {
+      "id": "door-face-depth",
+      "version": 1,
+      "enabled": true,
+      "title": "Door-face depth",
+      "instruction": "For a door-fronted cabinet, when the drawing dimension reaches the outside face of the door, subtract the door thickness to derive item depth. Default to 20 mm unless the drawing or confirmed project data specifies another thickness. Do not use a benchtop-inclusive dimension as cabinet depth. Record the source dimension, deduction and resulting depth.",
+      "scope": "Door-fronted cabinets with a dimension to the outside face of the door",
+      "source": "User-confirmed default for future kitchen reviews."
+    },
+    {
+      "id": "drawing-component-labels",
+      "version": 1,
+      "enabled": true,
+      "title": "Drawing component labels",
+      "instruction": "For drawings using the confirmed convention, interpret P as panel, B as bottom panel, T as toe kick and S as floating shelf. Record every marked occurrence separately in the drawing inventory and retain a corresponding library-item candidate. Repeated marks represent separate placed items. Keep unverified library matches unresolved rather than omitting them.",
+      "scope": "Drawings using the confirmed P, B, T and S component-label convention",
+      "source": "User-confirmed reading rule for marked drawings; apply to future kitchen reviews."
+    }
+  ]
+}

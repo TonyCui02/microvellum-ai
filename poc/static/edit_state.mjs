@@ -7,8 +7,6 @@ export function cloneItem(item) {
 }
 
 export function selectCatalogProduct(item, choice) {
-  const previousGroup = item.specification_group?.link_id || item.library_product?.specification_group?.link_id || null;
-  const nextGroup = choice.specification_group?.link_id || null;
   item.library_product = {
     ...item.library_product,
     name: choice.name,
@@ -20,7 +18,6 @@ export function selectCatalogProduct(item, choice) {
   };
   if (choice.specification_group) item.specification_group = cloneItem(choice.specification_group);
   else delete item.specification_group;
-  if (previousGroup !== nextGroup) delete item.material_catalog;
   return item;
 }
 

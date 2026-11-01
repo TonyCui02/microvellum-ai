@@ -9,9 +9,12 @@ import sqlite3
 import subprocess
 import xml.etree.ElementTree as ET
 import zlib
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src/mv_kitchen'))
+from rules import DEFAULT_PATH, check as check_rules, load as load_rules
 
 from model_validation import validate_model
-from material_catalog import material_scope
 
 
 def sha256(path):
@@ -28,6 +31,8 @@ def main():
     parser.add_argument('--model', type=Path, required=True)
     parser.add_argument('--catalog', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True, help='new output directory; must not exist')
+    parser.add_argument('--rulebook', type=Path, default=DEFAULT_PATH, help='private rulebook (or set MV_RULEBOOK)')
+    parser.add_argument('--use-saved-rules', action='store_true', help='explicitly export against the job snapshot if the current rulebook changed')
     args = parser.parse_args()
     model = json.loads(args.model.read_text(encoding='utf-8-sig'))
     if args.out.exists():
@@ -86,6 +91,7 @@ def main():
     if review_errors:
         fail('drawing model failed completeness/evidence checks: ' + '; '.join(review_errors))
     review = model.get('review', {})
+    rulebook_hash = check_rules(review.get('rules'), load_rules(args.rulebook), args.use_saved_rules)
     if (not review.get('approved_by') or not review.get('approved_at') or
             review.get('approved_revision') != project.get('revision') or review.get('issues')):
         fail('drawing coverage or review issues remain; complete review before XML generation')
@@ -152,7 +158,6 @@ def main():
         fail('at least one specification group is required')
     default_group = next(iter(group_by_name)) if len(group_by_name) == 1 else None
 
-    material_report = {'xml_supported': False, 'product_annotations': []}
 
     root = ET.Element('Root', {'Application': 'Microvellum', 'ApplicationVersion': '7.0'})
     proj = ET.SubElement(root, 'Project', {'Name': project['name']})
@@ -269,32 +274,6 @@ def main():
                                  'dimensions': {key:str(dims[key]) for key in ('width','height','depth')},
                                  'pose': {'x':str(x),'y':str(y),'z':str(p.get('elevation',0)),'angle':str(p.get('rotation',0))},
                                  'confirmed_prompts_exported': emitted, 'proposed_prompts_omitted': proposed})
-        legacy_material = p.get('material')
-        if legacy_material:
-            candidate_checks = []
-            for role, candidate in (p.get('material_catalog') or {}).items():
-                if not isinstance(candidate, dict) or not candidate.get('record_id'):
-                    continue
-                if candidate.get('catalog_sha256') and candidate['catalog_sha256'] != catalog_hash:
-                    fail(f"product {p['id']} material {role}: candidate is from a different catalog fingerprint")
-                rows = db.execute("SELECT record_id,link_id,name FROM entities WHERE table_name='Materials' AND record_id=?", (candidate['record_id'],)).fetchall()
-                if len(rows) != 1 or rows[0]['link_id'] != candidate.get('link_id') or rows[0]['name'] != candidate.get('name'):
-                    fail(f"product {p['id']} material {role}: selected catalog identity no longer matches")
-                if candidate.get('group') and candidate['group'] != product_group:
-                    fail(f"product {p['id']} material {role}: candidate group does not match product specification group")
-                if candidate.get('role') and candidate['role'] != role:
-                    fail(f"product {p['id']} material {role}: candidate role does not match")
-                try:
-                    members, assigned = material_scope(db, product_group, role)
-                except ValueError as exc:
-                    fail(f"product {p['id']} material {role}: cannot verify group scope: {exc}")
-                if candidate['link_id'] not in members:
-                    fail(f"product {p['id']} material {role}: record is not in specification group {product_group!r}")
-                candidate_checks.append({'role':role,'record_id':candidate['record_id'],'link_id':candidate['link_id'],
-                                         'name':rows[0]['name'],'group_assigned':candidate['link_id'] in assigned})
-            material_report['product_annotations'].append({'product_id': p['id'], 'requirement': legacy_material,
-                'catalog_candidates': candidate_checks, 'xml_action': 'omitted; no material assignment field is supported by the current XML profile'})
-
     ET.indent(root, space='  ')
     data = ET.tostring(root, encoding='utf-8', xml_declaration=True)
     # Independent XML parse and check key counts/references before writing.
@@ -337,8 +316,7 @@ def main():
     ]
     if omitted:
         warnings.append('Proposed but unconfirmed prompts were omitted: ' + ', '.join(omitted) + '.')
-    if material_report['product_annotations']:
-        warnings.append('Item material requirements and selected catalog records were checked and recorded in validation.json, but are omitted from project.xml because this XML profile has no verified material assignment field.')
+    warnings.append('No per-item material assignments are emitted; products inherit whatever defaults the selected library and specification group provide. Effective material defaults are not evaluated by this tool.')
     report = {
         'status': 'insufficient_evidence', 'review_status': review_state,
         'static_checks': 'passed', 'target_import_tested': False,
@@ -351,9 +329,11 @@ def main():
                               'mapped_count': sum(x['resolution'] in ('model_product','model_feature') for x in room['drawing_inventory']),
                               'explicitly_excluded_count': sum(x['resolution'] == 'explicit_exclusion' for x in room['drawing_inventory'])},
         'model_sha256': sha256(args.model), 'catalog_sha256': catalog_hash,
+        'rules': {'rulebook_sha256': rulebook_hash, 'used_saved_snapshot': args.use_saved_rules,
+                  'evaluations': review['rules']['evaluations']},
         'source_sqlite_sha256': source[0], 'xml_sha256': hashlib.sha256(data).hexdigest(),
         'target': {'build': '15.6.1308.640', 'library_label': 'modified Kitchen Library v7.1; snapshot match unverified', 'units': project['units']},
-        'products': product_manifest, 'item_materials': material_report, 'warnings': warnings,
+        'products': product_manifest, 'warnings': warnings,
         'limitations': ['This draft does not prove XML import, drawing, workbook calculation or manufacturing behavior.',
                         'The POC depicts schematic boxes; this XML uses their dimensions and placements as supplied.']
     }

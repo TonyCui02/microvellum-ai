@@ -24,7 +24,7 @@ def main():
     data = json.loads(model.read_text(encoding='utf-8-sig'))
     # Publishing a review draft may include unresolved drawing entities;
     # resolving them is the purpose of the review. Export validation stays strict.
-    errors = validate_model(data, allow_unresolved=True)
+    errors = validate_model(data, allow_unresolved=True, require_visual_self_check=True)
     if errors:
         parser.error('Cannot publish review: ' + ' '.join(errors))
     if data.get('source', {}).get('file') != pdf.name:

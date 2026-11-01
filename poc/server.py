@@ -13,7 +13,6 @@ from contextlib import closing
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from model_validation import validate_model
-from material_catalog import search_materials
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent
@@ -95,7 +94,6 @@ def adapt_normalized_model(model_data, model_path, pdf):
             'prompt_overrides':prompt_overrides,
             'dimension_evidence':{key:{'status':'confirmed','description':'Copied from normalized JSON; drawing match is not verified.'} for key in dims},
             'review_details':{'dimensions':{key:'Copied from selected JSON; verify against the source drawing.' for key in dims},'drawing':[],'questions':[]},
-            'material':None,
         })
         inventory.append({'id':f'item-{ident}','label':f'{ident} · {name}','kind':'part' if part else 'cabinet',
                           'resolution':'model_product','model_id':ident,
@@ -367,7 +365,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def catalog_search(self, route):
         kind = route.removeprefix('/api/catalog/')
-        table = {'products': 'Products', 'materials': 'Materials', 'groups': 'SpecificationGroups'}.get(kind)
+        table = {'products': 'Products', 'groups': 'SpecificationGroups'}.get(kind)
         if not table:
             return self.send_error(404)
         if CATALOG is None:
@@ -376,9 +374,6 @@ class Handler(SimpleHTTPRequestHandler):
         from urllib.parse import parse_qs
         params = parse_qs(query)
         term = params.get('q', [''])[0][:100]
-        group_name = params.get('group', [''])[0][:200]
-        group_link_id = params.get('group_link_id', [''])[0][:100]
-        role = params.get('role', [''])[0][:80]
         try:
             offset = max(0, min(int(params.get('offset', ['0'])[0]), 100000))
         except ValueError:
@@ -407,18 +402,6 @@ class Handler(SimpleHTTPRequestHandler):
                                 (SELECT s.link_id FROM entities s WHERE s.table_name='SpecificationGroups' AND s.link_id=json_extract(e.fields_json,'$.LinkIDSpecificationGroup') LIMIT 1),
                                 (SELECT s.name FROM entities s WHERE s.table_name='SpecificationGroups' AND s.link_id=json_extract(e.fields_json,'$.LinkIDSpecificationGroup') LIMIT 1)
                         ''' + base_sql + ''' ORDER BY e.name COLLATE NOCASE, e.record_id LIMIT 50 OFFSET ?''', (*params, offset)).fetchall()
-                elif table == 'Materials':
-                    if not group_name or not role:
-                        return self.write_response(400, b'{"error":"Material search requires an exact specification group and role."}', 'application/json; charset=utf-8')
-                    rows, total = search_materials(db, group_name, role, term, 50, offset, group_link_id or None)
-                    source = db.execute("SELECT value FROM metadata WHERE key='source_sqlite_sha256'").fetchone()
-                    return self.write_response(200, json.dumps({
-                        'results': [{**row, 'is_custom': False} for row in rows],
-                        'scope': f'{group_name} · {role} candidates', 'total': total, 'offset': offset,
-                        'group': group_name, 'group_link_id': group_link_id or None, 'role': role, 'catalog_sha256': CATALOG_SHA256,
-                        'source_sqlite_sha256': source[0] if source else None,
-                        'warning': 'Candidates are members of the selected specification group workbook in this analysis snapshot. They may be available but not assigned to a product pointer; active workstation provenance is unverified.'
-                    }, ensure_ascii=False).encode('utf-8'), 'application/json; charset=utf-8')
                 else:
                     libraries = db.execute("SELECT link_id,name FROM entities WHERE table_name='Libraries' ORDER BY name COLLATE NOCASE").fetchall()
                     if len(libraries) != 1:

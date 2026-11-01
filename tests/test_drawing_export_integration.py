@@ -16,6 +16,15 @@ from test_drawing_workflow import sample
 from test_xml_workflow import workflow
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'src/mv_kitchen'))
+import rules
+
+
+def evaluated_rules(path):
+    record = rules.snapshot(rules.load(path))
+    for entry in record['evaluations']:
+        entry.update(status='not_applicable', reason='Synthetic test input has no relevant drawing details.')
+    return record
 
 
 def make_pdf():
@@ -82,6 +91,7 @@ class DrawingExportIntegrationTests(unittest.TestCase):
             item['dimension_evidence']['depth'] = {'status': 'confirmed', 'description': 'synthetic input'}
             model['review'].update({'approved_by': 'Synthetic reviewer', 'approved_at': '2026-01-01',
                                     'approved_revision': 1})
+            model['review']['rules'] = evaluated_rules(root / 'rules.json')
             model['source']['file'] = drawing.name
             model['source']['path'] = drawing.name
             model['source']['visual_review']['source_sha256'] = source_hash
@@ -90,7 +100,14 @@ class DrawingExportIntegrationTests(unittest.TestCase):
             script = ROOT / 'poc/export_experimental_xml.py'
             output = root / 'output'
             command = [sys.executable, str(script), '--model', str(model_path), '--catalog', str(catalog),
-                       '--out', str(output)]
+                       '--rulebook', str(root / 'rules.json'), '--out', str(output)]
+            del model['review']['rules']
+            model_path.write_text(json.dumps(model), encoding='utf-8')
+            missing_rules = subprocess.run(command, capture_output=True, text=True)
+            self.assertNotEqual(missing_rules.returncode, 0)
+            self.assertIn('Missing review.rules snapshot', missing_rules.stderr)
+            model['review']['rules'] = evaluated_rules(root / 'rules.json')
+            model_path.write_text(json.dumps(model), encoding='utf-8')
             exported = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(exported.returncode, 0, exported.stderr)
             data = (output / 'project.xml').read_bytes()
@@ -154,10 +171,11 @@ class BundledCatalogIntegrationTests(unittest.TestCase):
             item['dimensions']['depth'] = 300
             item['dimension_evidence']['depth'] = {'status':'confirmed', 'description':'synthetic input'}
             model['review'].update({'approved_by':'Test reviewer', 'approved_at':'2026-01-01', 'approved_revision':1})
+            model['review']['rules'] = evaluated_rules(root / 'rules.json')
             model_path = root / 'review.json'
             model_path.write_text(json.dumps(model), encoding='utf-8')
             result = subprocess.run([sys.executable, str(ROOT / 'scripts/mv.py'), 'export', '--model', str(model_path),
-                                     '--out', str(root / 'out')], capture_output=True, text=True, encoding='utf-8')
+                                     '--rulebook', str(root / 'rules.json'), '--out', str(root / 'out')], capture_output=True, text=True, encoding='utf-8')
             self.assertEqual(result.returncode, 0, result.stderr)
             xml = workflow.parse_xml((root / 'out/project.xml').read_bytes())
             self.assertEqual(xml['products'][0]['name'], product[1])

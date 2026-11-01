@@ -18,7 +18,8 @@ def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>
 PNG=b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',1,1,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(b'\x00\x00\x00\x00'))+chunk(b'IEND',b'')
 
 def sample():
-    return {'project':{'name':'Example','units':'mm'},'source':{'visual_review':{'inspected_pages':[1]}},'review':{'issues':[]},'room':{'walls':[{'id':'W','start':[0,0],'end':[1000,0],'height':2400,'thickness':100}], 'drawing_inventory':[{'id':'A-view','label':'Cabinet','kind':'cabinet','resolution':'model_product','model_id':'A','evidence':['Page 1 plan']}], 'products':[{'id':'A','label':'Cabinet','wall_id':'W','offset':0,'elevation':0,'dimensions':{'width':400,'height':700,'depth':None},'visual_dimensions':{'depth':300},'dimension_evidence':{'width':{'status':'observed','page':1,'description':'Plan'},'height':{'status':'observed','page':1,'description':'Elevation'},'depth':{'status':'unknown','page':1,'description':'Not shown'}},'evidence':[],'prompt_overrides':[]} ]}}
+    visual_check={view:{'status':'matches_source','source_pages':[1],'evidence':'Compared modeled geometry with the source drawing.'} for view in ('front','top','3d')}
+    return {'project':{'name':'Example','units':'mm'},'source':{'visual_review':{'inspected_pages':[1]}},'review':{'issues':[],'visual_self_check':visual_check},'room':{'walls':[{'id':'W','start':[0,0],'end':[1000,0],'height':2400,'thickness':100}], 'drawing_inventory':[{'id':'A-view','label':'Cabinet','kind':'cabinet','resolution':'model_product','model_id':'A','evidence':['Page 1 plan']}], 'products':[{'id':'A','label':'Cabinet','wall_id':'W','offset':0,'elevation':0,'dimensions':{'width':400,'height':700,'depth':None},'visual_dimensions':{'depth':300},'dimension_evidence':{'width':{'status':'observed','page':1,'description':'Plan'},'height':{'status':'observed','page':1,'description':'Elevation'},'depth':{'status':'unknown','page':1,'description':'Not shown'}},'evidence':[],'prompt_overrides':[]} ]}}
 
 class DrawingWorkflowTests(unittest.TestCase):
     def test_png_copy_and_no_overwrite(self):
@@ -29,6 +30,11 @@ class DrawingWorkflowTests(unittest.TestCase):
             self.assertEqual(source.read_bytes(),PNG)
     def test_evidence_and_unsupported_geometry_are_blocked(self):
         good=sample();self.assertEqual(validate.validate_model(good),[])
+        self.assertEqual(validate.validate_model(good,require_visual_self_check=True),[])
+        missing_check=copy.deepcopy(good);missing_check['review'].pop('visual_self_check')
+        self.assertTrue(any('self-check' in e for e in validate.validate_model(missing_check,require_visual_self_check=True)))
+        bad_check=copy.deepcopy(good);bad_check['review']['visual_self_check']['top']['source_pages']=[2]
+        self.assertTrue(any('visually inspected' in e for e in validate.validate_model(bad_check,require_visual_self_check=True)))
         bad=copy.deepcopy(good);bad['room']['products'][0]['dimension_evidence']['depth']['status']='observed'
         self.assertTrue(any('status disagree' in e for e in validate.validate_model(bad)))
         bad=copy.deepcopy(good);bad['room']['drawing_inventory'][0]['resolution']='unresolved'
