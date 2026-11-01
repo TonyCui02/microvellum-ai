@@ -14,6 +14,7 @@ COMMANDS = {
     'catalog': 'investigation/sqlce/catalog.py',
     'prompts': 'investigation/sqlce/inspect_product_prompts.py',
     'publish': 'poc/render_review.py',
+    'model-views': 'poc/render_model_views.py',
     'serve': 'poc/server.py',
     'export': 'poc/export_experimental_xml.py',
     'rules': 'src/mv_kitchen/rules.py',

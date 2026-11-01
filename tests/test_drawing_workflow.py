@@ -12,6 +12,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def load(name,path):
     spec=importlib.util.spec_from_file_location(name,ROOT/path);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 render=load('render_drawing','src/mv_kitchen/render_drawing.py')
+model_views=load('render_model_views','poc/render_model_views.py')
 validate=load('model_validation','poc/model_validation.py')
 prompts=load('inspect_prompts','investigation/sqlce/inspect_product_prompts.py')
 def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data))
@@ -23,6 +24,15 @@ def sample():
     return {'project':{'name':'Example','units':'mm'},'source':{'visual_review':{'inspected_pages':[1]}},'review':{'issues':[],'visual_self_check':visual_check},'room':{'walls':[{'id':'W','start':[0,0],'end':[1000,0],'height':2400,'thickness':100}], 'drawing_inventory':[{'id':'A-view','label':'Cabinet','kind':'cabinet','resolution':'model_product','model_id':'A','evidence':['Page 1 plan']}], 'products':[{'id':'A','label':'Cabinet','wall_id':'W','offset':0,'elevation':0,'dimensions':{'width':400,'height':700,'depth':None},'visual_dimensions':{'depth':300},'dimension_evidence':{'width':{'status':'observed','page':1,'description':'Plan'},'height':{'status':'observed','page':1,'description':'Elevation'},'depth':{'status':'unknown','page':1,'description':'Not shown','search':depth_search}},'evidence':[],'prompt_overrides':[]} ]}}
 
 class DrawingWorkflowTests(unittest.TestCase):
+    def test_model_views_render_local_svg_with_unknown_dimensions_marked(self):
+        model={'project':{'name':'Test','units':'mm'},'room':{'walls':[{'id':'W','start':[0,0],'end':[1000,0],'height':2400,'thickness':100}], 'products':[{'id':'A','wall_id':'W','offset':0,'elevation':0,'dimensions':{'width':None,'height':700,'depth':None},'visual_dimensions':{'width':400,'height':700,'depth':500}}]}}
+        with tempfile.TemporaryDirectory() as d:
+            source=Path(d)/'model.json'; source.write_text(json.dumps(model)); out=Path(d)/'views'; model_views.render(source,out)
+            for view in ('front','top','3d'):
+                svg=(out/f'{view}.svg').read_text()
+                self.assertIn('<svg',svg); self.assertIn('A',svg)
+            self.assertIn('?',(out/'top.svg').read_text())
+            self.assertIn('?',(out/'3d.svg').read_text())
     def test_png_copy_and_no_overwrite(self):
         with tempfile.TemporaryDirectory() as d:
             source=Path(d)/'source.png';source.write_bytes(PNG);out=Path(d)/'out';data=render.render(source,out)
